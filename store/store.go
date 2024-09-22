@@ -19,12 +19,14 @@ type Store struct {
 	db *sql.DB
 }
 
-func NewStore() Store {
+var DB Store
+
+func NewStore() {
 	db, err := CheckDB()
 	if err != nil {
 		log.Fatal(err)
 	}
-	return Store{db: db}
+	DB = Store{db: db}
 }
 
 func CheckDB() (*sql.DB, error) {
@@ -75,7 +77,7 @@ func (s Store) Close() {
 	s.db.Close()
 }
 
-func (s Store) Add(p Scheduler) (int, error) {
+func (s Store) Add(p Task) (int, error) {
 	res, err := s.db.Exec("INSERT INTO "+Table+" (date, title, comment, repeat) VALUES (:date, :title, :comment, :repeat)",
 		sql.Named("date", p.Date),
 		sql.Named("title", p.Title),
@@ -92,8 +94,8 @@ func (s Store) Add(p Scheduler) (int, error) {
 	return int(id), nil
 }
 
-func (s Store) Get(id int) (Scheduler, error) {
-	p := Scheduler{}
+func (s Store) Get(id int) (Task, error) {
+	p := Task{}
 	row := s.db.QueryRow("SELECT id, date, title, comment, repeat FROM "+Table+" WHERE id = :id", sql.Named("id", id))
 	err := row.Scan(&p.ID, &p.Date, &p.Title, &p.Comment, &p.Repeat)
 	return p, err

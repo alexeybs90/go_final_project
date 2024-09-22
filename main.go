@@ -4,23 +4,27 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/alexeybs90/go_final_project/handlers"
 	"github.com/alexeybs90/go_final_project/store"
 )
 
-func ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(http.StatusOK)
-	res.Write([]byte("hi"))
-}
-
 func main() {
-	st := store.NewStore()
-	defer st.Close()
+	store.NewStore()
+	defer store.DB.Close()
 
+	// d, _ := time.Parse("20060102", "20240925")
+	// date, err := store.NextDate(d, "20240920", "d 4")
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// fmt.Println(date)
+	// return
 	port := os.Getenv("TODO_PORT")
 	if port == "" {
 		port = "7540"
 	}
-	http.HandleFunc("/tasks", ServeHTTP)
+	http.HandleFunc("/api/nextdate", handlers.NextDate)
+	http.HandleFunc("/api/task", handlers.PostTask)
 	http.Handle("/", http.FileServer(http.Dir("web")))
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
