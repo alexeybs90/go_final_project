@@ -32,7 +32,7 @@ func NextDate(res http.ResponseWriter, req *http.Request) {
 }
 
 func PostTask(res http.ResponseWriter, req *http.Request) {
-	res.Header().Set("Content-Type", "application/json")
+	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	switch req.Method {
 	case http.MethodPost:
 		//task := new(store.Task)
@@ -84,6 +84,20 @@ func PostTask(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func GetTasks(res http.ResponseWriter, req *http.Request) {
+	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	if req.Method != http.MethodGet {
+		badRequest(res, http.ErrNotSupported)
+	}
+	search := req.FormValue("search")
+	tasks, err := store.DB.GetTasks(search)
+	if err != nil {
+		badRequest(res, err)
+		return
+	}
+	json.NewEncoder(res).Encode(JsonTasks{Tasks: tasks})
+}
+
 func badRequest(res http.ResponseWriter, err error) {
 	res.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(res).Encode(JsonResult{Error: err.Error()})
@@ -93,4 +107,8 @@ func badRequest(res http.ResponseWriter, err error) {
 type JsonResult struct {
 	ID    string `json:"id,omitempty"`
 	Error string `json:"error,omitempty"`
+}
+
+type JsonTasks struct {
+	Tasks []store.Task `json:"tasks"`
 }

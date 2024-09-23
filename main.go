@@ -25,6 +25,7 @@ func main() {
 	}
 	http.HandleFunc("/api/nextdate", handlers.NextDate)
 	http.HandleFunc("/api/task", handlers.PostTask)
+	http.HandleFunc("/api/tasks", handlers.GetTasks)
 	http.Handle("/", http.FileServer(http.Dir("web")))
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {

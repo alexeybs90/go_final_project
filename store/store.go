@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -99,4 +101,44 @@ func (s Store) Get(id int) (Task, error) {
 	row := s.db.QueryRow("SELECT id, date, title, comment, repeat FROM "+Table+" WHERE id = :id", sql.Named("id", id))
 	err := row.Scan(&p.ID, &p.Date, &p.Title, &p.Comment, &p.Repeat)
 	return p, err
+}
+
+func (s Store) GetTasks(search string) ([]Task, error) {
+	var tasks []Task
+	q := ""
+	date := ""
+	if search != "" {
+		q = " WHERE LOWER(title) LIKE LOWER(:search) OR LOWER(comment) LIKE LOWER(:search)"
+		arr := strings.Split(search, ".")
+		if len(arr) == 3 && len(search) == 10 {
+			d, err := time.Parse("02.01.2006", search)
+			if err == nil {
+				q = " WHERE date = :date"
+				date = d.Format("20060102")
+			}
+		}
+	}
+	rows, err := s.db.Query("SELECT id, date, title, comment, repeat FROM "+Table+q+
+		" ORDER BY date LIMIT :limit",
+		sql.Named("search", "%"+search+"%"),
+		sql.Named("date", date),
+		sql.Named("limit", 30))
+	if err != nil {
+		return tasks, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		p := Task{}
+		err := rows.Scan(&p.ID, &p.Date, &p.Title, &p.Comment, &p.Repeat)
+		if err != nil {
+			return tasks, err
+		}
+		tasks = append(tasks, p)
+	}
+
+	if tasks == nil {
+		tasks = []Task{}
+	}
+	return tasks, err
 }

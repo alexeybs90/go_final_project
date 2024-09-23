@@ -20,6 +20,10 @@ func (t Task) NextDate(now time.Time) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	//при добавлении таски допускается пустой репит, а при некстдата - нет
+	if t.Repeat == "" {
+		return "", errors.New("поле повтор пустое")
+	}
 	newD, _ := time.Parse("20060102", t.Date)
 	s := strings.Split(t.Repeat, " ")
 	for {
