@@ -96,6 +96,19 @@ func (s Store) Add(p Task) (int, error) {
 	return int(id), nil
 }
 
+func (s Store) Update(p Task) error {
+	_, err := s.db.Exec("UPDATE "+Table+" SET date=:date, title=:title, comment=:comment, repeat=:repeat WHERE id=:id",
+		sql.Named("date", p.Date),
+		sql.Named("title", p.Title),
+		sql.Named("comment", p.Comment),
+		sql.Named("repeat", p.Repeat),
+		sql.Named("id", p.ID))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s Store) Get(id int) (Task, error) {
 	p := Task{}
 	row := s.db.QueryRow("SELECT id, date, title, comment, repeat FROM "+Table+" WHERE id = :id", sql.Named("id", id))

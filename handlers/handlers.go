@@ -3,7 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
-	"log"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -31,45 +31,14 @@ func NextDate(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte(result))
 }
 
-func PostTask(res http.ResponseWriter, req *http.Request) {
+func DoTask(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	switch req.Method {
 	case http.MethodPost:
-		//task := new(store.Task)
-		task := store.Task{}
-		var buf bytes.Buffer
-
-		_, err := buf.ReadFrom(req.Body)
+		task, err := parseAndCheckTask(req)
 		if err != nil {
 			badRequest(res, err)
 			return
-		}
-
-		if err = json.Unmarshal(buf.Bytes(), &task); err != nil {
-			badRequest(res, err)
-			return
-		}
-
-		log.Println(task)
-
-		err = task.CheckSave()
-		if err != nil {
-			badRequest(res, err)
-			return
-		}
-
-		today := time.Now()
-		if task.Date == "" {
-			task.Date = today.Format("20060102")
-		} else {
-			newD, _ := time.Parse("20060102", task.Date)
-			if newD.Before(today) {
-				if task.Repeat == "" {
-					task.Date = today.Format("20060102")
-				} else {
-					task.Date, _ = task.NextDate(today)
-				}
-			}
 		}
 
 		id, err := store.DB.Add(task)
@@ -81,7 +50,90 @@ func PostTask(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusCreated)
 		json.NewEncoder(res).Encode(JsonResult{ID: strconv.Itoa(id)})
 		// res.Write([]byte(fmt.Sprintf(`{"id": "%d"}`, id)))
+	case http.MethodGet:
+		id := req.URL.Query().Get("id")
+		if id == "" {
+			badRequest(res, errors.New("не указан id"))
+			return
+		}
+		task_id, err := strconv.Atoi(id)
+		if err != nil {
+			badRequest(res, err)
+			return
+		}
+		task, err := store.DB.Get(task_id)
+		if err != nil {
+			badRequest(res, err)
+			return
+		}
+		res.WriteHeader(http.StatusOK)
+		json.NewEncoder(res).Encode(task)
+	case http.MethodPut:
+		task, err := parseAndCheckTask(req)
+		if err != nil {
+			badRequest(res, err)
+			return
+		}
+
+		err = store.DB.Update(task)
+		if err != nil {
+			badRequest(res, err)
+			return
+		}
+
+		res.WriteHeader(http.StatusOK)
+		res.Write([]byte("{}"))
 	}
+}
+
+func parseAndCheckTask(req *http.Request) (store.Task, error) {
+	//task := new(store.Task)
+	task := store.Task{}
+	var buf bytes.Buffer
+
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		return task, err
+	}
+
+	if err = json.Unmarshal(buf.Bytes(), &task); err != nil {
+		return task, err
+	}
+
+	if req.Method == http.MethodPut {
+		//проверим, есть ли такая таска в бд
+		task_id, err := strconv.Atoi(task.ID)
+		if err != nil {
+			return task, err
+		}
+		_, err = store.DB.Get(task_id)
+		if err != nil {
+			return task, err
+		}
+	}
+
+	// log.Println(task)
+	err = task.CheckSave()
+	if err != nil {
+		return task, err
+	}
+
+	todayStr := time.Now().Format("20060102")
+	today, _ := time.Parse("20060102", todayStr) //отбрасываем время, чтобы было 00:00:00
+	if task.Date == "" {
+		task.Date = todayStr
+	} else {
+		newD, _ := time.Parse("20060102", task.Date)
+		// log.Println(newD, today)
+		if newD.Before(today) {
+			if task.Repeat == "" {
+				task.Date = today.Format("20060102")
+			} else {
+				task.Date, _ = task.NextDate(today)
+			}
+		}
+	}
+	return task, err
 }
 
 func GetTasks(res http.ResponseWriter, req *http.Request) {
