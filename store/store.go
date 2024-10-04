@@ -116,6 +116,15 @@ func (s Store) Get(id int) (Task, error) {
 	return p, err
 }
 
+func (s Store) Delete(p Task) error {
+	_, err := s.db.Exec("DELETE FROM "+Table+" WHERE id=:id",
+		sql.Named("id", p.ID))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s Store) GetTasks(search string) ([]Task, error) {
 	var tasks []Task
 	q := ""

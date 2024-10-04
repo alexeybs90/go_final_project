@@ -31,6 +31,53 @@ func NextDate(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte(result))
 }
 
+func Done(res http.ResponseWriter, req *http.Request) {
+	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	if req.Method != http.MethodPost {
+		badRequest(res, http.ErrNotSupported)
+	}
+	id := req.URL.Query().Get("id")
+	if id == "" {
+		badRequest(res, errors.New("не указан id"))
+		return
+	}
+	task_id, err := strconv.Atoi(id)
+	if err != nil {
+		badRequest(res, err)
+		return
+	}
+	task, err := store.DB.Get(task_id)
+	if err != nil {
+		badRequest(res, err)
+		return
+	}
+	if task.Repeat == "" {
+		err = store.DB.Delete(task)
+		if err != nil {
+			badRequest(res, err)
+			return
+		}
+		res.WriteHeader(http.StatusOK)
+		res.Write([]byte("{}"))
+		return
+	}
+	todayStr := time.Now().Format("20060102")
+	today, _ := time.Parse("20060102", todayStr)
+	date, err := task.NextDate(today)
+	if err != nil {
+		badRequest(res, err)
+		return
+	}
+	task.Date = date
+	err = store.DB.Update(task)
+	if err != nil {
+		badRequest(res, err)
+		return
+	}
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte("{}"))
+}
+
 func DoTask(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	switch req.Method {
@@ -83,9 +130,33 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 
 		res.WriteHeader(http.StatusOK)
 		res.Write([]byte("{}"))
+	case http.MethodDelete:
+		id := req.URL.Query().Get("id")
+		if id == "" {
+			badRequest(res, errors.New("не указан id"))
+			return
+		}
+		task_id, err := strconv.Atoi(id)
+		if err != nil {
+			badRequest(res, err)
+			return
+		}
+		task, err := store.DB.Get(task_id)
+		if err != nil {
+			badRequest(res, err)
+			return
+		}
+		err = store.DB.Delete(task)
+		if err != nil {
+			badRequest(res, err)
+			return
+		}
+		res.WriteHeader(http.StatusOK)
+		res.Write([]byte("{}"))
 	}
 }
 
+// parseAndCheckTask парсит таску из json и проверяет на ошибки
 func parseAndCheckTask(req *http.Request) (store.Task, error) {
 	//task := new(store.Task)
 	task := store.Task{}

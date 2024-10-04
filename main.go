@@ -23,6 +23,7 @@ func main() {
 	if port == "" {
 		port = "7540"
 	}
+	http.HandleFunc("/api/task/done", handlers.Done)
 	http.HandleFunc("/api/nextdate", handlers.NextDate)
 	http.HandleFunc("/api/task", handlers.DoTask)
 	http.HandleFunc("/api/tasks", handlers.GetTasks)
