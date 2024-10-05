@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -31,6 +33,46 @@ func NextDate(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte(result))
 }
 
+func SignIn(res http.ResponseWriter, req *http.Request) {
+	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	if req.Method != http.MethodPost {
+		badRequest(res, errors.New("неверный http метод"))
+		return
+	}
+	js := JsonPass{}
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		okWithError(res, err)
+		return
+	}
+	if err = json.Unmarshal(buf.Bytes(), &js); err != nil {
+		okWithError(res, err)
+		return
+	}
+
+	pass := js.Password
+	dbpass := os.Getenv("TODO_PASSWORD")
+	log.Println(dbpass)
+	if pass != dbpass {
+		okWithError(res, errors.New("неверный пароль"))
+		return
+	}
+	token, err := genToken(pass)
+	if err != nil {
+		okWithError(res, err)
+		return
+	}
+	response, err := json.Marshal(JsonPass{Token: token})
+	if err != nil {
+		okWithError(res, err)
+		return
+	}
+	res.WriteHeader(http.StatusOK)
+	log.Println(token)
+	res.Write(response)
+}
+
 func Done(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	if req.Method != http.MethodPost {
@@ -38,23 +80,23 @@ func Done(res http.ResponseWriter, req *http.Request) {
 	}
 	id := req.URL.Query().Get("id")
 	if id == "" {
-		badRequest(res, errors.New("не указан id"))
+		okWithError(res, errors.New("не указан id"))
 		return
 	}
 	task_id, err := strconv.Atoi(id)
 	if err != nil {
-		badRequest(res, err)
+		okWithError(res, err)
 		return
 	}
 	task, err := store.DB.Get(task_id)
 	if err != nil {
-		badRequest(res, err)
+		okWithError(res, err)
 		return
 	}
 	if task.Repeat == "" {
 		err = store.DB.Delete(task)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 		res.WriteHeader(http.StatusOK)
@@ -65,13 +107,13 @@ func Done(res http.ResponseWriter, req *http.Request) {
 	today, _ := time.Parse("20060102", todayStr)
 	date, err := task.NextDate(today)
 	if err != nil {
-		badRequest(res, err)
+		okWithError(res, err)
 		return
 	}
 	task.Date = date
 	err = store.DB.Update(task)
 	if err != nil {
-		badRequest(res, err)
+		okWithError(res, err)
 		return
 	}
 	res.WriteHeader(http.StatusOK)
@@ -84,13 +126,13 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 	case http.MethodPost:
 		task, err := parseAndCheckTask(req)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 
 		id, err := store.DB.Add(task)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 
@@ -100,17 +142,17 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 	case http.MethodGet:
 		id := req.URL.Query().Get("id")
 		if id == "" {
-			badRequest(res, errors.New("не указан id"))
+			okWithError(res, errors.New("не указан id"))
 			return
 		}
 		task_id, err := strconv.Atoi(id)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 		task, err := store.DB.Get(task_id)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 		res.WriteHeader(http.StatusOK)
@@ -118,13 +160,13 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 	case http.MethodPut:
 		task, err := parseAndCheckTask(req)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 
 		err = store.DB.Update(task)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 
@@ -133,78 +175,27 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 	case http.MethodDelete:
 		id := req.URL.Query().Get("id")
 		if id == "" {
-			badRequest(res, errors.New("не указан id"))
+			okWithError(res, errors.New("не указан id"))
 			return
 		}
 		task_id, err := strconv.Atoi(id)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 		task, err := store.DB.Get(task_id)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 		err = store.DB.Delete(task)
 		if err != nil {
-			badRequest(res, err)
+			okWithError(res, err)
 			return
 		}
 		res.WriteHeader(http.StatusOK)
 		res.Write([]byte("{}"))
 	}
-}
-
-// parseAndCheckTask парсит таску из json и проверяет на ошибки
-func parseAndCheckTask(req *http.Request) (store.Task, error) {
-	//task := new(store.Task)
-	task := store.Task{}
-	var buf bytes.Buffer
-
-	_, err := buf.ReadFrom(req.Body)
-	if err != nil {
-		return task, err
-	}
-
-	if err = json.Unmarshal(buf.Bytes(), &task); err != nil {
-		return task, err
-	}
-
-	if req.Method == http.MethodPut {
-		//проверим, есть ли такая таска в бд
-		task_id, err := strconv.Atoi(task.ID)
-		if err != nil {
-			return task, err
-		}
-		_, err = store.DB.Get(task_id)
-		if err != nil {
-			return task, err
-		}
-	}
-
-	// log.Println(task)
-	err = task.CheckSave()
-	if err != nil {
-		return task, err
-	}
-
-	todayStr := time.Now().Format("20060102")
-	today, _ := time.Parse("20060102", todayStr) //отбрасываем время, чтобы было 00:00:00
-	if task.Date == "" {
-		task.Date = todayStr
-	} else {
-		newD, _ := time.Parse("20060102", task.Date)
-		// log.Println(newD, today)
-		if newD.Before(today) {
-			if task.Repeat == "" {
-				task.Date = today.Format("20060102")
-			} else {
-				task.Date, _ = task.NextDate(today)
-			}
-		}
-	}
-	return task, err
 }
 
 func GetTasks(res http.ResponseWriter, req *http.Request) {
@@ -215,23 +206,8 @@ func GetTasks(res http.ResponseWriter, req *http.Request) {
 	search := req.FormValue("search")
 	tasks, err := store.DB.GetTasks(search)
 	if err != nil {
-		badRequest(res, err)
+		okWithError(res, err)
 		return
 	}
 	json.NewEncoder(res).Encode(JsonTasks{Tasks: tasks})
-}
-
-func badRequest(res http.ResponseWriter, err error) {
-	res.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(res).Encode(JsonResult{Error: err.Error()})
-	// res.Write([]byte(fmt.Sprintf(`{"error": "%s"}`, err.Error())))
-}
-
-type JsonResult struct {
-	ID    string `json:"id,omitempty"`
-	Error string `json:"error,omitempty"`
-}
-
-type JsonTasks struct {
-	Tasks []store.Task `json:"tasks"`
 }

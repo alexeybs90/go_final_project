@@ -23,10 +23,11 @@ func main() {
 	if port == "" {
 		port = "7540"
 	}
-	http.HandleFunc("/api/task/done", handlers.Done)
+	http.HandleFunc("/api/signin", handlers.SignIn)
+	http.HandleFunc("/api/task/done", handlers.Auth(handlers.Done))
 	http.HandleFunc("/api/nextdate", handlers.NextDate)
-	http.HandleFunc("/api/task", handlers.DoTask)
-	http.HandleFunc("/api/tasks", handlers.GetTasks)
+	http.HandleFunc("/api/task", handlers.Auth(handlers.DoTask))
+	http.HandleFunc("/api/tasks", handlers.Auth(handlers.GetTasks))
 	http.Handle("/", http.FileServer(http.Dir("web")))
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
