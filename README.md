@@ -44,3 +44,5 @@ docker run -d -p 8080:8080 go_final_project
 docker pull alexeybs90/go_final_project:fin
 docker run -d -p 8080:8080 alexeybs90/go_final_project:fin
 ```
+
+Приложение можно открыть в браузере по адресу http://localhost:7540/ или http://localhost:8080/ в зависимости от переменных окружения в Вашей системе или в докере
