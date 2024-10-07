@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -53,7 +52,7 @@ func SignIn(res http.ResponseWriter, req *http.Request) {
 
 	pass := js.Password
 	dbpass := os.Getenv("TODO_PASSWORD")
-	log.Println(dbpass)
+	// log.Println(dbpass)
 	if pass != dbpass {
 		okWithError(res, errors.New("неверный пароль"))
 		return
@@ -69,7 +68,7 @@ func SignIn(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	res.WriteHeader(http.StatusOK)
-	log.Println(token)
+	// log.Println(token)
 	res.Write(response)
 }
 
