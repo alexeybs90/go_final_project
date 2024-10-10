@@ -16,7 +16,7 @@ type Task struct {
 }
 
 func (t Task) NextDate(now time.Time) (string, error) {
-	err := t.CheckSave()
+	err := t.Validate()
 	if err != nil {
 		return "", err
 	}
@@ -24,7 +24,7 @@ func (t Task) NextDate(now time.Time) (string, error) {
 	if t.Repeat == "" {
 		return "", errors.New("поле повтор пустое")
 	}
-	newD, _ := time.Parse("20060102", t.Date)
+	newD, _ := time.Parse(DateFormat, t.Date)
 	s := strings.Split(t.Repeat, " ")
 	for {
 		if s[0] == "y" {
@@ -34,17 +34,17 @@ func (t Task) NextDate(now time.Time) (string, error) {
 			newD = newD.AddDate(0, 0, days)
 		}
 		if !newD.Before(now) {
-			return newD.Format("20060102"), nil
+			return newD.Format(DateFormat), nil
 		}
 	}
 }
 
-func (t Task) CheckSave() error {
+func (t Task) Validate() error {
 	if t.Title == "" {
 		return errors.New("заголовок не указан")
 	}
 	if len(t.Date) != 0 {
-		if _, err := time.Parse("20060102", t.Date); err != nil {
+		if _, err := time.Parse(DateFormat, t.Date); err != nil {
 			return err
 		}
 		s := strings.Split(t.Repeat, " ")

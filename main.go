@@ -1,34 +1,45 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/alexeybs90/go_final_project/handlers"
 	"github.com/alexeybs90/go_final_project/store"
 )
 
 func main() {
-	store.NewStore()
-	defer store.DB.Close()
+	s := store.NewStore()
+	defer s.Close()
 
-	// d, _ := time.Parse("20060102", "20240925")
-	// date, err := store.NextDate(d, "20240920", "d 4")
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// fmt.Println(date)
-	// return
+	service := handlers.NewTaskService(s)
+
+	service.TodoPassword = os.Getenv("TODO_PASSWORD")
 	port := os.Getenv("TODO_PORT")
 	if port == "" {
 		port = "7540"
 	}
-	http.HandleFunc("/api/signin", handlers.SignIn)
-	http.HandleFunc("/api/task/done", handlers.Auth(handlers.Done))
-	http.HandleFunc("/api/nextdate", handlers.NextDate)
-	http.HandleFunc("/api/task", handlers.Auth(handlers.DoTask))
-	http.HandleFunc("/api/tasks", handlers.Auth(handlers.GetTasks))
+	http.HandleFunc("/api/signin", service.SignIn)
+	http.HandleFunc("/api/task/done", service.Auth(service.Done))
+	http.HandleFunc("/api/nextdate", service.NextDate)
+	http.HandleFunc("/api/task", service.Auth(service.DoTask))
+	http.HandleFunc("/api/tasks", service.Auth(service.GetTasks))
 	http.Handle("/", http.FileServer(http.Dir("web")))
+
+	log.Println("Стартуем...")
+
+	go func() {
+		time.Sleep(time.Second * 3)
+		_, err := http.Get("http://localhost:" + port)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		log.Println("Приложение запущено на порту " + port)
+	}()
+
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)

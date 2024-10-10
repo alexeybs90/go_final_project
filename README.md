@@ -32,20 +32,21 @@ go test ./tests
 ```
 ENV TODO_PORT=8080
 ENV TODO_DBFILE=scheduler.db
-ENV TODO_PASSWORD=qwerty
 ```
 Здесь все параметры можно менять как угодно.
+
+Пароль передается через переменную TODO_PASSWORD при запуске контейнера.
 
 ### Запустить локально:
 ```
 docker build go_final_project .
-docker run -d -p 8080:8080 go_final_project
+docker run --env TODO_PASSWORD=qwerty -d -p 8080:8080 go_final_project
 ```
 
 ### Или запустить Docker-образ из докерхаба:
 ```
 docker pull alexeybs90/go_final_project:fin
-docker run -d -p 8080:8080 alexeybs90/go_final_project:fin
+docker run --env TODO_PASSWORD=qwerty -d -p 8080:8080 alexeybs90/go_final_project:v1
 ```
 
 Приложение можно открыть в браузере по адресу http://localhost:7540/ или http://localhost:8080/ в зависимости от переменных окружения в Вашей системе или в докере

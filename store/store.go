@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,20 +16,20 @@ const (
 	DriverName = "sqlite"
 	DBName     = "scheduler.db"
 	Table      = "scheduler"
+	TasksLimit = 30
+	DateFormat = "20060102"
 )
 
 type Store struct {
 	db *sql.DB
 }
 
-var DB Store
-
-func NewStore() {
+func NewStore() Store {
 	db, err := CheckDB()
 	if err != nil {
 		log.Fatal(err)
 	}
-	DB = Store{db: db}
+	return Store{db: db}
 }
 
 func CheckDB() (*sql.DB, error) {
@@ -97,7 +98,7 @@ func (s Store) Add(p Task) (int, error) {
 }
 
 func (s Store) Update(p Task) error {
-	_, err := s.db.Exec("UPDATE "+Table+" SET date=:date, title=:title, comment=:comment, repeat=:repeat WHERE id=:id",
+	res, err := s.db.Exec("UPDATE "+Table+" SET date=:date, title=:title, comment=:comment, repeat=:repeat WHERE id=:id",
 		sql.Named("date", p.Date),
 		sql.Named("title", p.Title),
 		sql.Named("comment", p.Comment),
@@ -105,6 +106,13 @@ func (s Store) Update(p Task) error {
 		sql.Named("id", p.ID))
 	if err != nil {
 		return err
+	}
+	i, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if i <= 0 {
+		return errors.New("такой записи не найдено в бд")
 	}
 	return nil
 }
@@ -127,24 +135,26 @@ func (s Store) Delete(p Task) error {
 
 func (s Store) GetTasks(search string) ([]Task, error) {
 	var tasks []Task
-	q := ""
+	query := "SELECT id, date, title, comment, repeat FROM " + Table + " ORDER BY date LIMIT :limit"
 	date := ""
 	if search != "" {
-		q = " WHERE LOWER(title) LIKE LOWER(:search) OR LOWER(comment) LIKE LOWER(:search)"
+		query = "SELECT id, date, title, comment, repeat FROM " + Table +
+			" WHERE LOWER(title) LIKE LOWER(:search) OR LOWER(comment) LIKE LOWER(:search)" +
+			" ORDER BY date LIMIT :limit"
 		arr := strings.Split(search, ".")
 		if len(arr) == 3 && len(search) == 10 {
 			d, err := time.Parse("02.01.2006", search)
 			if err == nil {
-				q = " WHERE date = :date"
-				date = d.Format("20060102")
+				query = "SELECT id, date, title, comment, repeat FROM " + Table +
+					" WHERE date = :date ORDER BY date LIMIT :limit"
+				date = d.Format(DateFormat)
 			}
 		}
 	}
-	rows, err := s.db.Query("SELECT id, date, title, comment, repeat FROM "+Table+q+
-		" ORDER BY date LIMIT :limit",
+	rows, err := s.db.Query(query,
 		sql.Named("search", "%"+search+"%"),
 		sql.Named("date", date),
-		sql.Named("limit", 30))
+		sql.Named("limit", TasksLimit))
 	if err != nil {
 		return tasks, err
 	}
@@ -157,6 +167,9 @@ func (s Store) GetTasks(search string) ([]Task, error) {
 			return tasks, err
 		}
 		tasks = append(tasks, p)
+	}
+	if err = rows.Err(); err != nil {
+		return tasks, err
 	}
 
 	if tasks == nil {

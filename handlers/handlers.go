@@ -4,16 +4,25 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/alexeybs90/go_final_project/store"
 )
 
-func NextDate(res http.ResponseWriter, req *http.Request) {
-	now, err := time.Parse("20060102", req.FormValue("now"))
+type TaskService struct {
+	store        store.Store
+	TodoPassword string
+}
+
+func NewTaskService(store store.Store) TaskService {
+	return TaskService{store: store}
+}
+
+func (s TaskService) NextDate(res http.ResponseWriter, req *http.Request) {
+	now, err := time.Parse(store.DateFormat, req.FormValue("now"))
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
@@ -29,10 +38,13 @@ func NextDate(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte(result))
+	_, err = res.Write([]byte(result))
+	if err != nil {
+		log.Println(err.Error())
+	}
 }
 
-func SignIn(res http.ResponseWriter, req *http.Request) {
+func (s TaskService) SignIn(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	if req.Method != http.MethodPost {
 		badRequest(res, errors.New("неверный http метод"))
@@ -51,9 +63,7 @@ func SignIn(res http.ResponseWriter, req *http.Request) {
 	}
 
 	pass := js.Password
-	dbpass := os.Getenv("TODO_PASSWORD")
-	// log.Println(dbpass)
-	if pass != dbpass {
+	if pass != s.TodoPassword {
 		okWithError(res, errors.New("неверный пароль"))
 		return
 	}
@@ -68,11 +78,13 @@ func SignIn(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	res.WriteHeader(http.StatusOK)
-	// log.Println(token)
-	res.Write(response)
+	_, err = res.Write(response)
+	if err != nil {
+		log.Println(err.Error())
+	}
 }
 
-func Done(res http.ResponseWriter, req *http.Request) {
+func (s TaskService) Done(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	if req.Method != http.MethodPost {
 		badRequest(res, http.ErrNotSupported)
@@ -87,49 +99,55 @@ func Done(res http.ResponseWriter, req *http.Request) {
 		okWithError(res, err)
 		return
 	}
-	task, err := store.DB.Get(task_id)
+	task, err := s.store.Get(task_id)
 	if err != nil {
 		okWithError(res, err)
 		return
 	}
 	if task.Repeat == "" {
-		err = store.DB.Delete(task)
+		err = s.store.Delete(task)
 		if err != nil {
 			okWithError(res, err)
 			return
 		}
 		res.WriteHeader(http.StatusOK)
-		res.Write([]byte("{}"))
+		_, err = res.Write([]byte("{}"))
+		if err != nil {
+			log.Println(err.Error())
+		}
 		return
 	}
-	todayStr := time.Now().Format("20060102")
-	today, _ := time.Parse("20060102", todayStr)
+	todayStr := time.Now().Format(store.DateFormat)
+	today, _ := time.Parse(store.DateFormat, todayStr)
 	date, err := task.NextDate(today)
 	if err != nil {
 		okWithError(res, err)
 		return
 	}
 	task.Date = date
-	err = store.DB.Update(task)
+	err = s.store.Update(task)
 	if err != nil {
 		okWithError(res, err)
 		return
 	}
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte("{}"))
+	_, err = res.Write([]byte("{}"))
+	if err != nil {
+		log.Println(err.Error())
+	}
 }
 
-func DoTask(res http.ResponseWriter, req *http.Request) {
+func (s TaskService) DoTask(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	switch req.Method {
 	case http.MethodPost:
-		task, err := parseAndCheckTask(req)
+		task, err := s.parseAndCheckTask(req)
 		if err != nil {
 			okWithError(res, err)
 			return
 		}
 
-		id, err := store.DB.Add(task)
+		id, err := s.store.Add(task)
 		if err != nil {
 			okWithError(res, err)
 			return
@@ -137,7 +155,6 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 
 		res.WriteHeader(http.StatusCreated)
 		json.NewEncoder(res).Encode(JsonResult{ID: strconv.Itoa(id)})
-		// res.Write([]byte(fmt.Sprintf(`{"id": "%d"}`, id)))
 	case http.MethodGet:
 		id := req.URL.Query().Get("id")
 		if id == "" {
@@ -149,7 +166,7 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 			okWithError(res, err)
 			return
 		}
-		task, err := store.DB.Get(task_id)
+		task, err := s.store.Get(task_id)
 		if err != nil {
 			okWithError(res, err)
 			return
@@ -157,20 +174,23 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusOK)
 		json.NewEncoder(res).Encode(task)
 	case http.MethodPut:
-		task, err := parseAndCheckTask(req)
+		task, err := s.parseAndCheckTask(req)
 		if err != nil {
 			okWithError(res, err)
 			return
 		}
 
-		err = store.DB.Update(task)
+		err = s.store.Update(task)
 		if err != nil {
 			okWithError(res, err)
 			return
 		}
 
 		res.WriteHeader(http.StatusOK)
-		res.Write([]byte("{}"))
+		_, err = res.Write([]byte("{}"))
+		if err != nil {
+			log.Println(err.Error())
+		}
 	case http.MethodDelete:
 		id := req.URL.Query().Get("id")
 		if id == "" {
@@ -182,28 +202,31 @@ func DoTask(res http.ResponseWriter, req *http.Request) {
 			okWithError(res, err)
 			return
 		}
-		task, err := store.DB.Get(task_id)
+		task, err := s.store.Get(task_id)
 		if err != nil {
 			okWithError(res, err)
 			return
 		}
-		err = store.DB.Delete(task)
+		err = s.store.Delete(task)
 		if err != nil {
 			okWithError(res, err)
 			return
 		}
 		res.WriteHeader(http.StatusOK)
-		res.Write([]byte("{}"))
+		_, err = res.Write([]byte("{}"))
+		if err != nil {
+			log.Println(err.Error())
+		}
 	}
 }
 
-func GetTasks(res http.ResponseWriter, req *http.Request) {
+func (s TaskService) GetTasks(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	if req.Method != http.MethodGet {
 		badRequest(res, http.ErrNotSupported)
 	}
 	search := req.FormValue("search")
-	tasks, err := store.DB.GetTasks(search)
+	tasks, err := s.store.GetTasks(search)
 	if err != nil {
 		okWithError(res, err)
 		return

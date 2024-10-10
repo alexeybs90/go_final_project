@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/alexeybs90/go_final_project/store"
@@ -50,10 +48,10 @@ func genToken(pass string) (string, error) {
 	return token, nil
 }
 
-func Auth(next http.HandlerFunc) http.HandlerFunc {
+func (s TaskService) Auth(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// смотрим наличие пароля
-		pass := os.Getenv("TODO_PASSWORD")
+		pass := s.TodoPassword
 		if len(pass) > 0 {
 			var jwt string // JWT-токен из куки
 			// получаем куку
@@ -79,8 +77,7 @@ func Auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // parseAndCheckTask парсит таску из json и проверяет на ошибки
-func parseAndCheckTask(req *http.Request) (store.Task, error) {
-	//task := new(store.Task)
+func (s TaskService) parseAndCheckTask(req *http.Request) (store.Task, error) {
 	task := store.Task{}
 	var buf bytes.Buffer
 
@@ -93,34 +90,20 @@ func parseAndCheckTask(req *http.Request) (store.Task, error) {
 		return task, err
 	}
 
-	if req.Method == http.MethodPut {
-		//проверим, есть ли такая таска в бд
-		task_id, err := strconv.Atoi(task.ID)
-		if err != nil {
-			return task, err
-		}
-		_, err = store.DB.Get(task_id)
-		if err != nil {
-			return task, err
-		}
-	}
-
-	// log.Println(task)
-	err = task.CheckSave()
+	err = task.Validate()
 	if err != nil {
 		return task, err
 	}
 
-	todayStr := time.Now().Format("20060102")
-	today, _ := time.Parse("20060102", todayStr) //отбрасываем время, чтобы было 00:00:00
+	todayStr := time.Now().Format(store.DateFormat)
+	today, _ := time.Parse(store.DateFormat, todayStr) //отбрасываем время, чтобы было 00:00:00
 	if task.Date == "" {
 		task.Date = todayStr
 	} else {
-		newD, _ := time.Parse("20060102", task.Date)
-		// log.Println(newD, today)
+		newD, _ := time.Parse(store.DateFormat, task.Date)
 		if newD.Before(today) {
 			if task.Repeat == "" {
-				task.Date = today.Format("20060102")
+				task.Date = today.Format(store.DateFormat)
 			} else {
 				task.Date, _ = task.NextDate(today)
 			}
