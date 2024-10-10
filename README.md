@@ -45,7 +45,7 @@ docker run --env TODO_PASSWORD=qwerty -d -p 8080:8080 go_final_project
 
 ### Или запустить Docker-образ из докерхаба:
 ```
-docker pull alexeybs90/go_final_project:fin
+docker pull alexeybs90/go_final_project:v1
 docker run --env TODO_PASSWORD=qwerty -d -p 8080:8080 alexeybs90/go_final_project:v1
 ```
 
