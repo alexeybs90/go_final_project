@@ -14,11 +14,11 @@ import (
 
 type TaskService struct {
 	store        store.Store
-	TodoPassword string
+	todoPassword string
 }
 
-func NewTaskService(store store.Store) TaskService {
-	return TaskService{store: store}
+func NewTaskService(store store.Store, password string) TaskService {
+	return TaskService{store: store, todoPassword: password}
 }
 
 func (s TaskService) NextDate(res http.ResponseWriter, req *http.Request) {
@@ -63,7 +63,7 @@ func (s TaskService) SignIn(res http.ResponseWriter, req *http.Request) {
 	}
 
 	pass := js.Password
-	if pass != s.TodoPassword {
+	if pass != s.todoPassword {
 		okWithError(res, errors.New("неверный пароль"))
 		return
 	}

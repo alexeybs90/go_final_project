@@ -14,9 +14,9 @@ func main() {
 	s := store.NewStore()
 	defer s.Close()
 
-	service := handlers.NewTaskService(s)
+	todoPassword := os.Getenv("TODO_PASSWORD")
+	service := handlers.NewTaskService(s, todoPassword)
 
-	service.TodoPassword = os.Getenv("TODO_PASSWORD")
 	port := os.Getenv("TODO_PORT")
 	if port == "" {
 		port = "7540"

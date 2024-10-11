@@ -51,7 +51,7 @@ func genToken(pass string) (string, error) {
 func (s TaskService) Auth(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// смотрим наличие пароля
-		pass := s.TodoPassword
+		pass := s.todoPassword
 		if len(pass) > 0 {
 			var jwt string // JWT-токен из куки
 			// получаем куку
